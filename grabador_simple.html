@@ -199,12 +199,11 @@ async function toggleGrabar(){
         grabados.add(it.archivo);audios[it.archivo]={blob,url};
         aBlob=blob;aUrl=url;
         document.getElementById('brec').className='brec ok';
-        document.getElementById('etxt').textContent='✅ ¡Lista!';
+        document.getElementById('etxt').textContent='✅ ¡Lista! Escucha y luego guarda el MP3';
         document.getElementById('besc').disabled=false;
         document.getElementById('bmp3').disabled=false;
         document.getElementById('bnext').disabled=false;
         prog();renderLat();
-        guardar();
       };
       rec.start(100);grab=true;seg=0;
       document.getElementById('brec').className='brec grab';
