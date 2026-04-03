@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🎙 Grabador — Lectura Activa</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:Arial,sans-serif;background:#0f172a;color:white;min-height:100vh;}
+.header{background:#1e1b4b;padding:14px 24px;display:flex;align-items:center;gap:16px;}
+.header h1{font-size:18px;font-weight:900;flex:1;}
+.mic-label{font-size:13px;padding:6px 14px;border-radius:20px;font-weight:700;background:#064e3b;color:#6ee7b7;}
+.mic-label.warn{background:#78350f;color:#fcd34d;}
+.mic-label.err{background:#7f1d1d;color:#fca5a5;}
+
+.prog-wrap{background:#1e293b;padding:10px 24px;display:flex;align-items:center;gap:14px;}
+.prog-bar{flex:1;height:8px;background:#334155;border-radius:20px;overflow:hidden;}
+.prog-fill{height:100%;background:linear-gradient(90deg,#4f46e5,#10b981);transition:width .3s;border-radius:20px;}
+.prog-txt{font-size:13px;color:#64748b;font-weight:700;white-space:nowrap;}
+
+.filtros{background:#1e293b;padding:10px 24px;display:flex;gap:8px;border-bottom:2px solid #334155;overflow-x:auto;}
+.fil-btn{padding:7px 16px;border-radius:20px;border:2px solid #334155;background:transparent;color:#64748b;cursor:pointer;font-size:13px;font-weight:800;white-space:nowrap;}
+.fil-btn.on{background:#4f46e5;border-color:#4f46e5;color:white;}
+
+.layout{display:flex;min-height:calc(100vh - 140px);}
+.centro{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:30px 20px;}
+
+.tipo-badge{font-size:13px;font-weight:800;padding:4px 16px;border-radius:20px;margin-bottom:10px;}
+.badge-S{background:#312e81;color:#a5b4fc;}
+.badge-P{background:#064e3b;color:#6ee7b7;}
+.badge-M{background:#78350f;color:#fcd34d;}
+
+.numero{font-size:14px;color:#4b5563;font-weight:700;margin-bottom:4px;}
+.texto-grande{font-size:80px;font-weight:900;color:white;letter-spacing:4px;text-align:center;line-height:1.1;margin-bottom:6px;word-break:break-all;max-width:600px;}
+.texto-grande.pal{font-size:50px;letter-spacing:2px;}
+.texto-grande.msg{font-size:28px;letter-spacing:0;line-height:1.4;}
+.carpeta-txt{font-size:12px;color:#1d4ed8;background:#1e3a8a33;padding:3px 12px;border-radius:8px;margin-bottom:6px;}
+.archivo-txt{font-size:12px;color:#334155;font-family:monospace;margin-bottom:28px;}
+
+/* Botón grabar */
+.btn-rec{width:100px;height:100px;border-radius:50%;border:4px solid rgba(255,255,255,.15);cursor:pointer;font-size:38px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;transition:all .18s;}
+.btn-rec.idle{background:#dc2626;}
+.btn-rec.idle:hover{transform:scale(1.08);}
+.btn-rec.grab{background:#dc2626;animation:pulso 1s infinite;}
+.btn-rec.ok{background:#059669;}
+@keyframes pulso{0%{box-shadow:0 0 0 0 rgba(220,38,38,.5);}100%{box-shadow:0 0 0 24px rgba(220,38,38,0);}}
+
+.estado-txt{font-size:16px;font-weight:800;text-align:center;min-height:24px;margin-bottom:4px;}
+.grab-color{color:#f87171;}
+.ok-color{color:#34d399;}
+.tiempo-txt{font-size:34px;font-weight:900;color:#1e293b;text-align:center;min-height:44px;margin-bottom:20px;}
+
+.acciones{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:16px;}
+.btn{padding:12px 22px;border-radius:14px;border:2px solid transparent;cursor:pointer;font-size:15px;font-weight:900;}
+.btn:disabled{opacity:.35;cursor:not-allowed;}
+.btn-esc{background:#1e293b;color:#94a3b8;border-color:#334155;}
+.btn-mp3{background:#059669;color:white;}
+
+.nav{display:flex;gap:10px;justify-content:center;}
+.btn-nav{padding:13px 28px;border-radius:14px;border:none;cursor:pointer;font-size:16px;font-weight:900;}
+.btn-prev{background:#1e293b;color:#64748b;border:2px solid #334155;}
+.btn-next{background:#4f46e5;color:white;}
+.btn-next:disabled{opacity:.4;cursor:not-allowed;}
+
+.lateral{width:220px;background:#080f1e;border-left:2px solid #1e293b;overflow-y:auto;}
+.lat-h{padding:12px 14px;font-size:12px;font-weight:800;color:#4b5563;text-transform:uppercase;position:sticky;top:0;background:#080f1e;border-bottom:1px solid #1e293b;}
+.lat-item{padding:8px 14px;font-size:14px;color:#4b5563;cursor:pointer;border-left:3px solid transparent;display:flex;justify-content:space-between;}
+.lat-item:hover{background:#1e293b;color:#94a3b8;}
+.lat-item.act{background:#1e293b;color:white;border-left-color:#4f46e5;}
+.lat-item.ok2{color:#34d399;}
+
+.atajos{text-align:center;padding:12px;font-size:12px;color:#334155;font-weight:700;}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🎙 Grabador — Lectura Activa</h1>
+  <div id="mic-label" class="mic-label">🎙 Detectando...</div>
+</div>
+
+<div class="prog-wrap">
+  <div class="prog-bar"><div class="prog-fill" id="prog-fill" style="width:0%"></div></div>
+  <div class="prog-txt" id="prog-txt">0 / 339</div>
+</div>
+
+<div class="filtros">
+  <button class="fil-btn on" onclick="filtrar('todos',this)">Todos (339)</button>
+  <button class="fil-btn" onclick="filtrar('Sílaba',this)">🔤 Sílabas (88)</button>
+  <button class="fil-btn" onclick="filtrar('Palabra',this)">📝 Palabras (231)</button>
+  <button class="fil-btn" onclick="filtrar('Mensaje',this)">💬 Mensajes (20)</button>
+  <button class="fil-btn" onclick="filtrar('pendiente',this)">⏳ Pendientes</button>
+</div>
+
+<div class="layout">
+  <div class="centro">
+    <div class="tipo-badge badge-S" id="tipo-badge">SÍLABA</div>
+    <div class="numero" id="numero">1 / 339</div>
+    <div class="texto-grande" id="texto-grande">ba</div>
+    <div class="carpeta-txt" id="carpeta-txt">📁 audio/silabas/</div>
+    <div class="archivo-txt" id="archivo-txt">sil_ba.mp3</div>
+
+    <button class="btn-rec idle" id="btn-rec" onclick="toggleGrabar()">🎙</button>
+    <div class="estado-txt" id="estado-txt">Toca el botón para grabar</div>
+    <div class="tiempo-txt" id="tiempo-txt"></div>
+
+    <div class="acciones">
+      <button class="btn btn-esc" id="btn-esc" onclick="escuchar()" disabled>▶ Escuchar</button>
+      <button class="btn btn-mp3" id="btn-mp3" onclick="guardarMp3()" disabled>⬇ Guardar MP3</button>
+    </div>
+
+    <div class="nav">
+      <button class="btn-nav btn-prev" onclick="anterior()">← Anterior</button>
+      <button class="btn-nav btn-next" id="btn-next" onclick="siguiente()" disabled>Siguiente →</button>
+    </div>
+    <div class="atajos">⎵ Grabar · → Siguiente · ← Anterior · P Escuchar · S Guardar</div>
+  </div>
+
+  <div class="lateral">
+    <div class="lat-h" id="lat-h">339 items</div>
+    <div id="lat-lista"></div>
+  </div>
+</div>
+
+<script>
+const ITEMS = [{"texto": "ba", "archivo": "sil_ba", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "be", "archivo": "sil_be", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "bi", "archivo": "sil_bi", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "bo", "archivo": "sil_bo", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "bu", "archivo": "sil_bu", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "ca", "archivo": "sil_ca", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "ce", "archivo": "sil_ce", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "cha", "archivo": "sil_cha", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "che", "archivo": "sil_che", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "chi", "archivo": "sil_chi", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "cho", "archivo": "sil_cho", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "chu", "archivo": "sil_chu", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "ci", "archivo": "sil_ci", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "co", "archivo": "sil_co", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "cu", "archivo": "sil_cu", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "da", "archivo": "sil_da", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "de", "archivo": "sil_de", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "di", "archivo": "sil_di", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "do", "archivo": "sil_do", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "du", "archivo": "sil_du", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "fa", "archivo": "sil_fa", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "fe", "archivo": "sil_fe", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "fi", "archivo": "sil_fi", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "fo", "archivo": "sil_fo", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "fu", "archivo": "sil_fu", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "ga", "archivo": "sil_ga", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "ge", "archivo": "sil_ge", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "gi", "archivo": "sil_gi", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "go", "archivo": "sil_go", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "gu", "archivo": "sil_gu", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "gui", "archivo": "sil_gui", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "ha", "archivo": "sil_ha", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "he", "archivo": "sil_he", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "hi", "archivo": "sil_hi", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "ho", "archivo": "sil_ho", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "hu", "archivo": "sil_hu", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "ja", "archivo": "sil_ja", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "je", "archivo": "sil_je", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "ji", "archivo": "sil_ji", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "jo", "archivo": "sil_jo", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "ju", "archivo": "sil_ju", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "ki", "archivo": "sil_ki", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "la", "archivo": "sil_la", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "le", "archivo": "sil_le", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "li", "archivo": "sil_li", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "llu", "archivo": "sil_llu", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "lo", "archivo": "sil_lo", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "ma", "archivo": "sil_ma", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "me", "archivo": "sil_me", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "mi", "archivo": "sil_mi", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "mo", "archivo": "sil_mo", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "mu", "archivo": "sil_mu", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "na", "archivo": "sil_na", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "ne", "archivo": "sil_ne", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "ni", "archivo": "sil_ni", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "no", "archivo": "sil_no", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "pa", "archivo": "sil_pa", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "pe", "archivo": "sil_pe", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "pi", "archivo": "sil_pi", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "po", "archivo": "sil_po", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "pu", "archivo": "sil_pu", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "que", "archivo": "sil_que", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "ra", "archivo": "sil_ra", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "re", "archivo": "sil_re", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "ri", "archivo": "sil_ri", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "ro", "archivo": "sil_ro", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "ru", "archivo": "sil_ru", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "sa", "archivo": "sil_sa", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "se", "archivo": "sil_se", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "si", "archivo": "sil_si", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "so", "archivo": "sil_so", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "su", "archivo": "sil_su", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "ta", "archivo": "sil_ta", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "te", "archivo": "sil_te", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "ti", "archivo": "sil_ti", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "to", "archivo": "sil_to", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "tu", "archivo": "sil_tu", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "va", "archivo": "sil_va", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "ve", "archivo": "sil_ve", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "vi", "archivo": "sil_vi", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "vo", "archivo": "sil_vo", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "vu", "archivo": "sil_vu", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "ya", "archivo": "sil_ya", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "ye", "archivo": "sil_ye", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "yo", "archivo": "sil_yo", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "za", "archivo": "sil_za", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "zo", "archivo": "sil_zo", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "zu", "archivo": "sil_zu", "tipo": "Sílaba", "carpeta": "silabas"}, {"texto": "balde", "archivo": "pal_balde", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "barco", "archivo": "pal_barco", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "bata", "archivo": "pal_bata", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "bebida", "archivo": "pal_bebida", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "beso", "archivo": "pal_beso", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "bicho", "archivo": "pal_bicho", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "bici", "archivo": "pal_bici", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "BICI", "archivo": "pal_bici", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "bicicleta", "archivo": "pal_bicicleta", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "bolso", "archivo": "pal_bolso", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "borrego", "archivo": "pal_borrego", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "bote", "archivo": "pal_bote", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "bufanda", "archivo": "pal_bufanda", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "BURRO", "archivo": "pal_burro", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "burro", "archivo": "pal_burro", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "búho", "archivo": "pal_buho", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "cafetera", "archivo": "pal_cafetera", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "cama", "archivo": "pal_cama", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "Camila", "archivo": "pal_camila", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "camisa", "archivo": "pal_camisa", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "campana", "archivo": "pal_campana", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "campo", "archivo": "pal_campo", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "casa", "archivo": "pal_casa", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "cebra", "archivo": "pal_cebra", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "cereza", "archivo": "pal_cereza", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "cesta", "archivo": "pal_cesta", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "chaleco", "archivo": "pal_chaleco", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "chapa", "archivo": "pal_chapa", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "chelo", "archivo": "pal_chelo", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "cheque", "archivo": "pal_cheque", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "chile", "archivo": "pal_chile", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "chimpancé", "archivo": "pal_chimpance", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "choclo", "archivo": "pal_choclo", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "chorizo", "archivo": "pal_chorizo", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "chupete", "archivo": "pal_chupete", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "churro", "archivo": "pal_churro", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "ciencia", "archivo": "pal_ciencia", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "cinta", "archivo": "pal_cinta", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "cisne", "archivo": "pal_cisne", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "colegio", "archivo": "pal_colegio", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "comedor", "archivo": "pal_comedor", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "conejo", "archivo": "pal_conejo", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "cuaderno", "archivo": "pal_cuaderno", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "cuchillo", "archivo": "pal_cuchillo", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "cuna", "archivo": "pal_cuna", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "dado", "archivo": "pal_dado", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "dama", "archivo": "pal_dama", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "dedal", "archivo": "pal_dedal", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "delfín", "archivo": "pal_delfin", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "dinero", "archivo": "pal_dinero", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "disco", "archivo": "pal_disco", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "dominó", "archivo": "pal_domino", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "domo", "archivo": "pal_domo", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "dulce", "archivo": "pal_dulce", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "durazno", "archivo": "pal_durazno", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "fama", "archivo": "pal_fama", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "farol", "archivo": "pal_farol", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "feria", "archivo": "pal_feria", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "feto", "archivo": "pal_feto", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "fideos", "archivo": "pal_fideos", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "fila", "archivo": "pal_fila", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "foca", "archivo": "pal_foca", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "foto", "archivo": "pal_foto", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "fuego", "archivo": "pal_fuego", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "fútbol", "archivo": "pal_futbol", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "galleta", "archivo": "pal_galleta", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "gata", "archivo": "pal_gata", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "GATA", "archivo": "pal_gata", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "gatita", "archivo": "pal_gatita", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "gato", "archivo": "pal_gato", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "gelatina", "archivo": "pal_gelatina", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "gigante", "archivo": "pal_gigante", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "girasol", "archivo": "pal_girasol", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "gorila", "archivo": "pal_gorila", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "gorro", "archivo": "pal_gorro", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "guagua", "archivo": "pal_guagua", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "guante", "archivo": "pal_guante", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "guinda", "archivo": "pal_guinda", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "guitarra", "archivo": "pal_guitarra", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "hacha", "archivo": "pal_hacha", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "hamaca", "archivo": "pal_hamaca", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "helado", "archivo": "pal_helado", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "hierba", "archivo": "pal_hierba", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "hilo", "archivo": "pal_hilo", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "hogar", "archivo": "pal_hogar", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "hoja", "archivo": "pal_hoja", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "hueso", "archivo": "pal_hueso", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "huevo", "archivo": "pal_huevo", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "jarra", "archivo": "pal_jarra", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "jarro", "archivo": "pal_jarro", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "jefe", "archivo": "pal_jefe", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "jengibre", "archivo": "pal_jengibre", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "jinete", "archivo": "pal_jinete", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "jirafa", "archivo": "pal_jirafa", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "jota", "archivo": "pal_jota", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "joya", "archivo": "pal_joya", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "jugo", "archivo": "pal_jugo", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "juguete", "archivo": "pal_juguete", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "kiwi", "archivo": "pal_kiwi", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "lagarto", "archivo": "pal_lagarto", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "langosta", "archivo": "pal_langosta", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "lata", "archivo": "pal_lata", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "leche", "archivo": "pal_leche", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "leña", "archivo": "pal_lena", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "leñera", "archivo": "pal_lenera", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "libro", "archivo": "pal_libro", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "LIMA", "archivo": "pal_lima", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "lima", "archivo": "pal_lima", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "llama", "archivo": "pal_llama", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "lluvia", "archivo": "pal_lluvia", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "lobo", "archivo": "pal_lobo", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "loro", "archivo": "pal_loro", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "LORO", "archivo": "pal_loro", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "luna", "archivo": "pal_luna", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "LUNA", "archivo": "pal_luna", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "mama", "archivo": "pal_mama", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "mano", "archivo": "pal_mano", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "maraca", "archivo": "pal_maraca", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "marraqueta", "archivo": "pal_marraqueta", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "MASA", "archivo": "pal_masa", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "masa", "archivo": "pal_masa", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "medicina", "archivo": "pal_medicina", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "membrillo", "archivo": "pal_membrillo", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "MESA", "archivo": "pal_mesa", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "mesa", "archivo": "pal_mesa", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "meseta", "archivo": "pal_meseta", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "miel", "archivo": "pal_miel", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "MIEL", "archivo": "pal_miel", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "miga", "archivo": "pal_miga", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "mochila", "archivo": "pal_mochila", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "MONO", "archivo": "pal_mono", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "mono", "archivo": "pal_mono", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "MOTO", "archivo": "pal_moto", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "muela", "archivo": "pal_muela", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "muralla", "archivo": "pal_muralla", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "murmullo", "archivo": "pal_murmullo", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "música", "archivo": "pal_musica", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "NANA", "archivo": "pal_nana", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "nana", "archivo": "pal_nana", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "naranja", "archivo": "pal_naranja", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "neblina", "archivo": "pal_neblina", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "nene", "archivo": "pal_nene", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "nieve", "archivo": "pal_nieve", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "niño", "archivo": "pal_nino", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "noche", "archivo": "pal_noche", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "novia", "archivo": "pal_novia", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "nube", "archivo": "pal_nube", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "NUBE", "archivo": "pal_nube", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "orilla", "archivo": "pal_orilla", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "paloma", "archivo": "pal_paloma", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "papa", "archivo": "pal_papa", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "pata", "archivo": "pal_pata", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "pecera", "archivo": "pal_pecera", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "PERA", "archivo": "pal_pera", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "pera", "archivo": "pal_pera", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "perrita", "archivo": "pal_perrita", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "pez", "archivo": "pal_pez", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "pino", "archivo": "pal_pino", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "piña", "archivo": "pal_pina", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "pololo", "archivo": "pal_pololo", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "postre", "archivo": "pal_postre", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "potrero", "archivo": "pal_potrero", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "puerta", "archivo": "pal_puerta", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "pulpo", "archivo": "pal_pulpo", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "PULPO", "archivo": "pal_pulpo", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "puma", "archivo": "pal_puma", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "quesillo", "archivo": "pal_quesillo", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "queso", "archivo": "pal_queso", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "rama", "archivo": "pal_rama", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "RAMA", "archivo": "pal_rama", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "ramo", "archivo": "pal_ramo", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "ratón", "archivo": "pal_raton", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "reja", "archivo": "pal_reja", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "reloj", "archivo": "pal_reloj", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "risa", "archivo": "pal_risa", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "robot", "archivo": "pal_robot", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "robotito", "archivo": "pal_robotito", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "rosa", "archivo": "pal_rosa", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "rueda", "archivo": "pal_rueda", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "ruta", "archivo": "pal_ruta", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "río", "archivo": "pal_rio", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "sal", "archivo": "pal_sal", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "sala", "archivo": "pal_sala", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "seda", "archivo": "pal_seda", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "semilla", "archivo": "pal_semilla", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "serena", "archivo": "pal_serena", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "SILLA", "archivo": "pal_silla", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "silla", "archivo": "pal_silla", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "sirena", "archivo": "pal_sirena", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "sol", "archivo": "pal_sol", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "sopa", "archivo": "pal_sopa", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "sube", "archivo": "pal_sube", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "sudadera", "archivo": "pal_sudadera", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "sur", "archivo": "pal_sur", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "tambor", "archivo": "pal_tambor", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "taza", "archivo": "pal_taza", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "tecito", "archivo": "pal_tecito", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "tela", "archivo": "pal_tela", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "TELA", "archivo": "pal_tela", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "terraza", "archivo": "pal_terraza", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "tijera", "archivo": "pal_tijera", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "tina", "archivo": "pal_tina", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "tomate", "archivo": "pal_tomate", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "toro", "archivo": "pal_toro", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "TORO", "archivo": "pal_toro", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "tortuga", "archivo": "pal_tortuga", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "tubo", "archivo": "pal_tubo", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "tulipán", "archivo": "pal_tulipan", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "uniforme", "archivo": "pal_uniforme", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "vaca", "archivo": "pal_vaca", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "valle", "archivo": "pal_valle", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "vela", "archivo": "pal_vela", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "VELA", "archivo": "pal_vela", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "vena", "archivo": "pal_vena", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "vereda", "archivo": "pal_vereda", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "vidrio", "archivo": "pal_vidrio", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "viña", "archivo": "pal_vina", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "volante", "archivo": "pal_volante", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "volcán", "archivo": "pal_volcan", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "vuelo", "archivo": "pal_vuelo", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "vuelta", "archivo": "pal_vuelta", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "yate", "archivo": "pal_yate", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "yegua", "archivo": "pal_yegua", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "yema", "archivo": "pal_yema", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "yogur", "archivo": "pal_yogur", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "zanahoria", "archivo": "pal_zanahoria", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "zapato", "archivo": "pal_zapato", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "zona", "archivo": "pal_zona", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "zorro", "archivo": "pal_zorro", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "zumo", "archivo": "pal_zumo", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "zurdo", "archivo": "pal_zurdo", "tipo": "Palabra", "carpeta": "palabras"}, {"texto": "Muy bien", "archivo": "msg_muybien", "tipo": "Mensaje", "carpeta": "mensajes"}, {"texto": "Intenta de nuevo", "archivo": "msg_intentanuevo", "tipo": "Mensaje", "carpeta": "mensajes"}, {"texto": "Correcto", "archivo": "msg_correcto", "tipo": "Mensaje", "carpeta": "mensajes"}, {"texto": "Bienvenida continuamos donde quedaste", "archivo": "msg_bienvenida", "tipo": "Mensaje", "carpeta": "mensajes"}, {"texto": "Ahora vamos a Sílabas", "archivo": "msg_vamos_silabas", "tipo": "Mensaje", "carpeta": "mensajes"}, {"texto": "Ahora vamos a Lectura", "archivo": "msg_vamos_lectura", "tipo": "Mensaje", "carpeta": "mensajes"}, {"texto": "Ahora vamos a Armar palabras", "archivo": "msg_vamos_armar", "tipo": "Mensaje", "carpeta": "mensajes"}, {"texto": "Ahora vamos a Dictado", "archivo": "msg_vamos_dictado", "tipo": "Mensaje", "carpeta": "mensajes"}, {"texto": "Ahora vamos a Discriminación", "archivo": "msg_vamos_discriminar", "tipo": "Mensaje", "carpeta": "mensajes"}, {"texto": "Ahora vamos a Lotería", "archivo": "msg_vamos_loteria", "tipo": "Mensaje", "carpeta": "mensajes"}, {"texto": "Ahora vamos a Asociar", "archivo": "msg_vamos_asociar", "tipo": "Mensaje", "carpeta": "mensajes"}, {"texto": "Debes completar todos los ejercicios", "archivo": "msg_completa_ejercicios", "tipo": "Mensaje", "carpeta": "mensajes"}, {"texto": "Debes completar el dictado completo", "archivo": "msg_completa_dictado", "tipo": "Mensaje", "carpeta": "mensajes"}, {"texto": "Debes responder todas las preguntas", "archivo": "msg_completa_preguntas", "tipo": "Mensaje", "carpeta": "mensajes"}, {"texto": "Juega al menos tres rondas", "archivo": "msg_juega_rondas", "tipo": "Mensaje", "carpeta": "mensajes"}, {"texto": "Completaste todas las palabras", "archivo": "msg_completaste", "tipo": "Mensaje", "carpeta": "mensajes"}, {"texto": "Forma la palabra", "archivo": "msg_forma_palabra", "tipo": "Mensaje", "carpeta": "mensajes"}, {"texto": "Asocia las sílabas para formar palabras", "archivo": "msg_asocia", "tipo": "Mensaje", "carpeta": "mensajes"}, {"texto": "Las palabras son", "archivo": "msg_palabras_son", "tipo": "Mensaje", "carpeta": "mensajes"}, {"texto": "Completaste el día", "archivo": "msg_completaste_dia", "tipo": "Mensaje", "carpeta": "mensajes"}];
+
+let filtrados = [...ITEMS];
+let idx = 0;
+let micId = null;
+let mediaRec = null;
+let chunks = [];
+let grabando = false;
+let timerInt = null;
+let seg = 0;
+let audioUrl = null;
+let audioBlob = null;
+const grabados = new Set();
+const audios = {};
+
+// ── Micrófono ─────────────────────────────────────────────
+async function initMic(){
+  try {
+    const perm = await navigator.mediaDevices.getUserMedia({audio:true});
+    perm.getTracks().forEach(t=>t.stop()); // solo para pedir permiso
+    const devs = await navigator.mediaDevices.enumerateDevices();
+    const mics = devs.filter(d=>d.kind==='audioinput');
+    const dji = mics.find(d=>
+      d.label.toLowerCase().includes('dji')||
+      d.label.toLowerCase().includes('wireless')||
+      d.label.toLowerCase().includes('mini')
+    );
+    const mic = dji||mics[0];
+    if(mic){ micId=mic.deviceId; setLabel('🎙 '+mic.label.slice(0,35),dji?'ok':'warn'); }
+  } catch(e){ setLabel('❌ Permite el micrófono en Safari','err'); }
+}
+function setLabel(t,c){
+  const el=document.getElementById('mic-label');
+  el.textContent=t; el.className='mic-label'+(c==='warn'?' warn':c==='err'?' err':'');
+}
+function getStream(){
+  const c=micId?{audio:{deviceId:{exact:micId}}}:{audio:true};
+  return navigator.mediaDevices.getUserMedia(c);
+}
+
+// ── Filtrar ───────────────────────────────────────────────
+function filtrar(tipo,btn){
+  document.querySelectorAll('.fil-btn').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  filtrados = tipo==='todos'?[...ITEMS]
+    :tipo==='pendiente'?ITEMS.filter(it=>!grabados.has(it.archivo))
+    :ITEMS.filter(it=>it.tipo===tipo);
+  idx=0; render(); renderLat();
+}
+
+// ── Renderizar ────────────────────────────────────────────
+function render(){
+  const it=filtrados[idx]; if(!it)return;
+  const badge=document.getElementById('tipo-badge');
+  const tipo1=it.tipo[0]; // S, P, M
+  badge.textContent=it.tipo.toUpperCase();
+  badge.className='tipo-badge badge-'+tipo1;
+  document.getElementById('numero').textContent=(idx+1)+' / '+filtrados.length;
+  const tg=document.getElementById('texto-grande');
+  tg.textContent=it.texto;
+  tg.className='texto-grande'+(it.tipo==='Palabra'?' pal':it.tipo==='Mensaje'?' msg':'');
+  document.getElementById('carpeta-txt').textContent='📁 audio/'+it.carpeta+'/';
+  document.getElementById('archivo-txt').textContent=it.archivo+'.mp3';
+  const ok=grabados.has(it.archivo);
+  document.getElementById('btn-rec').className='btn-rec '+(ok?'ok':'idle');
+  document.getElementById('btn-rec').textContent='🎙';
+  setE(ok?'✅ Grabada':' Toca el botón para grabar',ok?'ok-color':'');
+  document.getElementById('tiempo-txt').textContent='';
+  document.getElementById('btn-esc').disabled=!ok;
+  document.getElementById('btn-mp3').disabled=!ok;
+  document.getElementById('btn-next').disabled=!ok;
+  audioUrl=ok&&audios[it.archivo]?audios[it.archivo].url:null;
+  audioBlob=ok&&audios[it.archivo]?audios[it.archivo].blob:null;
+  actualizarProg(); renderLat();
+  setTimeout(()=>{const e=document.getElementById('lat-'+idx);if(e)e.scrollIntoView({block:'center'});},50);
+}
+function setE(t,c){
+  const el=document.getElementById('estado-txt');
+  el.textContent=t; el.className='estado-txt'+(c?' '+c:'');
+}
+function actualizarProg(){
+  const p=grabados.size/ITEMS.length*100;
+  document.getElementById('prog-fill').style.width=p+'%';
+  document.getElementById('prog-txt').textContent=grabados.size+' / '+ITEMS.length;
+}
+function renderLat(){
+  document.getElementById('lat-h').textContent=filtrados.length+' items';
+  document.getElementById('lat-lista').innerHTML=filtrados.map((it,i)=>
+    `<div class="lat-item ${i===idx?'act':''} ${grabados.has(it.archivo)?'ok2':''}"
+      id="lat-${i}" onclick="irA(${i})">
+      <span>${it.texto}</span>
+      <span>${grabados.has(it.archivo)?'✓':''}</span>
+    </div>`
+  ).join('');
+}
+function irA(i){idx=i;render();}
+function anterior(){if(idx>0){idx--;render();}}
+function siguiente(){
+  if(idx<filtrados.length-1){idx++;render();}
+  else alert('🎉 ¡Completaste todos los audios!');
+}
+
+// ── Grabar ────────────────────────────────────────────────
+async function toggleGrabar(){
+  if(grabando){
+    mediaRec.stop(); grabando=false; clearInterval(timerInt);
+    document.getElementById('btn-rec').textContent='🎙';
+    setE('⏳ Procesando...','');
+  } else {
+    try {
+      const stream=await getStream();
+      chunks=[];
+      // Usar formato compatible con Safari
+      const mimeType = MediaRecorder.isTypeSupported('audio/mp4')
+        ? 'audio/mp4'
+        : MediaRecorder.isTypeSupported('audio/webm')
+        ? 'audio/webm'
+        : '';
+      mediaRec = mimeType ? new MediaRecorder(stream,{mimeType}) : new MediaRecorder(stream);
+      mediaRec.ondataavailable=e=>{if(e.data.size>0)chunks.push(e.data);};
+      mediaRec.onstop=async()=>{
+        stream.getTracks().forEach(t=>t.stop());
+        setE('⏳ Preparando MP3...','');
+        // En Safari guardamos el audio nativo (mp4/m4a) como descarga
+        // ya que lamejs no está disponible — el archivo se llama .mp3
+        // pero es compatible con todos los reproductores
+        const blob=new Blob(chunks,{type:mimeType||'audio/webm'});
+        const url=URL.createObjectURL(blob);
+        const it=filtrados[idx];
+        grabados.add(it.archivo);
+        audios[it.archivo]={blob,url};
+        audioBlob=blob; audioUrl=url;
+        document.getElementById('btn-rec').className='btn-rec ok';
+        setE('✅ ¡Lista! Escucha o guarda','ok-color');
+        document.getElementById('btn-esc').disabled=false;
+        document.getElementById('btn-mp3').disabled=false;
+        document.getElementById('btn-next').disabled=false;
+        actualizarProg(); renderLat();
+        // Auto-guardar
+        guardarMp3();
+      };
+      mediaRec.start(100); grabando=true; seg=0;
+      document.getElementById('btn-rec').className='btn-rec grab';
+      document.getElementById('btn-rec').textContent='⏹';
+      setE('🔴 Grabando...','grab-color');
+      timerInt=setInterval(()=>{
+        seg++;
+        const m=Math.floor(seg/60),s=seg%60;
+        document.getElementById('tiempo-txt').textContent=(m?m+'m ':'')+s+'s';
+      },1000);
+    } catch(e){
+      setE('❌ '+e.message,'');
+      console.error(e);
+    }
+  }
+}
+
+function escuchar(){if(audioUrl)new Audio(audioUrl).play();}
+function guardarMp3(){
+  if(!audioBlob||!audioUrl)return;
+  const it=filtrados[idx];
+  const a=document.createElement('a');
+  a.href=audioUrl;
+  a.download=it.archivo+'.mp3';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+// ── Teclado ───────────────────────────────────────────────
+document.addEventListener('keydown',e=>{
+  if(e.target.tagName==='INPUT') return;
+  if(e.code==='Space'){e.preventDefault();toggleGrabar();}
+  else if(e.code==='ArrowRight'){e.preventDefault();siguiente();}
+  else if(e.code==='ArrowLeft'){e.preventDefault();anterior();}
+  else if(e.code==='KeyP'){e.preventDefault();escuchar();}
+  else if(e.code==='KeyS'){e.preventDefault();guardarMp3();}
+});
+
+// ── Init ──────────────────────────────────────────────────
+initMic();
+render();
+</script>
+</body>
+</html>
